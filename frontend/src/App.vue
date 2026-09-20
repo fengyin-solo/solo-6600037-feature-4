@@ -15,26 +15,54 @@
             </button>
           </div>
         </div>
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 space-y-3">
+          <h3 class="text-sm font-bold text-slate-400">参数预设</h3>
+          <div v-if="store.presets.length" class="space-y-2">
+            <select v-model="selectedPresetId" @change="onSelectPreset"
+              class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-cyan-500 outline-none">
+              <option :value="null">手动设置（未使用预设）</option>
+              <option v-for="p in store.presets" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+            <button v-if="selectedPresetId" @click="onDeletePreset"
+              class="w-full text-xs py-1.5 rounded border border-red-800 text-red-400 hover:bg-red-900/30 transition-all">
+              删除该预设
+            </button>
+          </div>
+          <div v-else class="text-xs text-slate-500">暂无预设，可将当前参数组合保存以便复用。</div>
+          <div class="flex gap-2">
+            <input v-model="newPresetName" type="text" placeholder="新预设名称" maxlength="20"
+              @keyup.enter="onSavePreset"
+              class="flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 focus:border-cyan-500 outline-none" />
+            <button @click="onSavePreset"
+              class="px-3 py-1.5 text-xs rounded bg-cyan-700 hover:bg-cyan-600 text-white transition-all">
+              保存
+            </button>
+          </div>
+          <div v-if="activePreset" class="text-xs text-cyan-400/80 leading-relaxed border-t border-slate-700 pt-2">
+            当前预设「{{ activePreset.name }}」<br />
+            λ={{ activePreset.params.wavelength }}nm · d={{ activePreset.params.slitWidth }}μm · D={{ activePreset.params.slitSeparation }}μm · L={{ activePreset.params.screenDistance }}mm
+          </div>
+        </div>
         <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 space-y-4">
           <h3 class="text-sm font-bold text-slate-400">参数调节</h3>
           <div>
             <label class="text-xs text-slate-500">波长 λ = {{ store.params.wavelength }} nm</label>
-            <input type="range" min="380" max="780" step="5" v-model.number="store.params.wavelength" @input="store.compute" class="w-full accent-cyan-500" />
+            <input type="range" min="380" max="780" step="5" v-model.number="store.params.wavelength" @input="store.onManualParams()" class="w-full accent-cyan-500" />
             <div class="flex justify-between text-xs mt-0.5">
               <span style="color:#8b5cf6">380</span><span style="color:#06b6d4">500</span><span style="color:#22c55e">550</span><span style="color:#eab308">600</span><span style="color:#dc2626">780</span>
             </div>
           </div>
           <div v-if="store.currentExperiment !== 'newton'">
             <label class="text-xs text-slate-500">缝宽/间距 d = {{ store.params.slitWidth }} μm</label>
-            <input type="range" min="10" max="200" step="5" v-model.number="store.params.slitWidth" @input="store.compute" class="w-full accent-purple-500" />
+            <input type="range" min="10" max="200" step="5" v-model.number="store.params.slitWidth" @input="store.onManualParams()" class="w-full accent-purple-500" />
           </div>
           <div v-if="store.currentExperiment === 'double'">
             <label class="text-xs text-slate-500">缝间距 D = {{ store.params.slitSeparation }} μm</label>
-            <input type="range" min="50" max="500" step="10" v-model.number="store.params.slitSeparation" @input="store.compute" class="w-full accent-green-500" />
+            <input type="range" min="50" max="500" step="10" v-model.number="store.params.slitSeparation" @input="store.onManualParams()" class="w-full accent-green-500" />
           </div>
           <div>
             <label class="text-xs text-slate-500">屏幕距离 L = {{ store.params.screenDistance }} mm</label>
-            <input type="range" min="100" max="2000" step="50" v-model.number="store.params.screenDistance" @input="store.compute" class="w-full accent-orange-500" />
+            <input type="range" min="100" max="2000" step="50" v-model.number="store.params.screenDistance" @input="store.onManualParams()" class="w-full accent-orange-500" />
           </div>
         </div>
         <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 text-sm">
@@ -75,12 +103,29 @@
         </div>
       </div>
     </div>
+    <!-- 确认对话框：删除在用预设 / 恢复失效参数 / 连续切换时先确认 -->
+    <div v-if="confirmState" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" @click.self="resolveConfirm(false)">
+      <div class="bg-slate-800 border border-slate-600 rounded-lg p-5 w-96 max-w-[90vw] space-y-4 shadow-xl">
+        <h4 class="text-base font-bold" :class="confirmState.danger ? 'text-red-400' : 'text-cyan-400'">{{ confirmState.title }}</h4>
+        <p class="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{{ confirmState.message }}</p>
+        <div class="flex justify-end gap-2">
+          <button @click="resolveConfirm(false)"
+            class="px-4 py-1.5 text-sm rounded border border-slate-600 text-slate-300 hover:border-slate-400 transition-all">
+            取消
+          </button>
+          <button @click="resolveConfirm(true)"
+            :class="['px-4 py-1.5 text-sm rounded text-white transition-all', confirmState.danger ? 'bg-red-700 hover:bg-red-600' : 'bg-cyan-700 hover:bg-cyan-600']">
+            确认
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { useOpticsStore } from './store/optics'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useOpticsStore, PARAM_RANGES } from './store/optics'
 
 const store = useOpticsStore()
 const patternRef = ref<HTMLCanvasElement | null>(null)
@@ -92,6 +137,103 @@ const experiments = [
   { id: 'single', name: '单缝衍射 (Fraunhofer)' },
   { id: 'newton', name: '牛顿环干涉' },
 ]
+
+// ---- 参数预设 ----
+const selectedPresetId = ref<string | null>(null)
+const newPresetName = ref('')
+const activePreset = computed(() => store.presets.find(p => p.id === store.activePresetId) || null)
+
+interface ConfirmState {
+  title: string
+  message: string
+  danger?: boolean
+  resolve: (ok: boolean) => void
+}
+const confirmState = ref<ConfirmState | null>(null)
+
+function askConfirm(title: string, message: string, danger = false): Promise<boolean> {
+  return new Promise(resolve => { confirmState.value = { title, message, danger, resolve } })
+}
+function resolveConfirm(ok: boolean) {
+  confirmState.value?.resolve(ok)
+  confirmState.value = null
+}
+
+/** 取消危险操作时：回滚到上一组可用状态并还原界面选择 */
+function cancelToLastValid() {
+  store.restoreLastValidState()
+  selectedPresetId.value = store.activePresetId
+}
+
+let lastApplyTime = 0
+
+async function onSelectPreset() {
+  const id = selectedPresetId.value
+  if (!id || id === store.activePresetId) {
+    selectedPresetId.value = store.activePresetId
+    return
+  }
+  const preset = store.presets.find(p => p.id === id)
+  if (!preset) {
+    selectedPresetId.value = store.activePresetId
+    return
+  }
+
+  // 连续切换：先确认，取消则保留上一组可用状态
+  if (Date.now() - lastApplyTime < 1000) {
+    const ok = await askConfirm(
+      '连续切换预设',
+      '您正在快速连续切换预设，当前实验状态将被覆盖。\n是否继续切换？\n（取消将保留当前实验状态）'
+    )
+    if (!ok) { cancelToLastValid(); return }
+  }
+
+  // 失效参数：先确认，确认则修正到合法范围后应用，取消则保留上一组可用状态
+  const invalid = store.validateParams(preset.params)
+  if (invalid.length) {
+    const detail = invalid.map(k => {
+      const r = PARAM_RANGES[k]
+      return `${r.label} = ${preset.params[k]}${r.unit}（合法范围 ${r.min}~${r.max}${r.unit}）`
+    }).join('\n')
+    const ok = await askConfirm(
+      '预设参数已失效',
+      `预设「${preset.name}」包含已失效参数：\n${detail}\n\n确认：修正到合法范围后应用\n取消：保留当前实验状态`
+    )
+    if (!ok) { cancelToLastValid(); return }
+    store.applyPreset(id, true)
+  } else {
+    store.applyPreset(id)
+  }
+  lastApplyTime = Date.now()
+  selectedPresetId.value = store.activePresetId
+}
+
+async function onDeletePreset() {
+  const id = selectedPresetId.value
+  if (!id) return
+  const preset = store.presets.find(p => p.id === id)
+  if (!preset) return
+  const inUse = store.activePresetId === id
+  const ok = await askConfirm(
+    '删除预设',
+    inUse
+      ? `预设「${preset.name}」正在使用中。\n删除后当前实验参数将保留为手动设置，可继续调节。\n\n确认删除？`
+      : `确认删除预设「${preset.name}」？此操作不可撤销。`,
+    true
+  )
+  if (!ok) return
+  store.deletePreset(id)
+  selectedPresetId.value = store.activePresetId
+}
+
+function onSavePreset() {
+  const preset = store.savePreset(newPresetName.value)
+  newPresetName.value = ''
+  selectedPresetId.value = preset.id
+  lastApplyTime = Date.now()
+}
+
+watch(() => store.activePresetId, id => { selectedPresetId.value = id })
 
 function wavelengthToRGB(nm: number): [number, number, number] {
   let r = 0, g = 0, b = 0
@@ -181,6 +323,10 @@ function drawHeatmap() {
 
 function renderAll() { drawPattern(); drawIntensity(); drawHeatmap() }
 
-onMounted(() => { store.compute(); setTimeout(renderAll, 100) })
+onMounted(() => {
+  store.init()
+  selectedPresetId.value = store.activePresetId
+  setTimeout(renderAll, 100)
+})
 watch(() => store.intensityData, () => renderAll(), { deep: true })
 </script>
