@@ -37,6 +37,7 @@
             <input type="range" min="100" max="2000" step="50" v-model.number="store.params.screenDistance" @input="store.compute" class="w-full accent-orange-500" />
           </div>
         </div>
+        <PresetPanel />
         <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 text-sm">
           <h3 class="text-sm font-bold text-slate-400 mb-3">理论公式</h3>
           <div class="space-y-2 text-xs text-slate-400">
@@ -75,12 +76,15 @@
         </div>
       </div>
     </div>
+    <ConfirmDialog />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useOpticsStore } from './store/optics'
+import PresetPanel from './components/PresetPanel.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const store = useOpticsStore()
 const patternRef = ref<HTMLCanvasElement | null>(null)
